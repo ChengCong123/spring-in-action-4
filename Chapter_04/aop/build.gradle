@@ -1,0 +1,25 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+
+jar {
+    baseName = 'aop-demo'
+    version =  '0.0.1-SNAPSHOT'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    compile("org.springframework:spring-context:${springVersion}")
+    compile("org.aspectj:aspectjweaver:${aspectJVersion}")
+
+    testCompile("org.springframework:spring-test:${springVersion}")
+    testCompile "com.github.stefanbirkner:system-rules:${systemRulesVersion}"
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '1.11'
+}

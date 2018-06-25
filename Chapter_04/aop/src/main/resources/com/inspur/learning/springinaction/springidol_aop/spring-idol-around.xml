@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+     http://www.springframework.org/schema/beans/spring-beans.xsd
+     http://www.springframework.org/schema/aop
+     http://www.springframework.org/schema/aop/spring-aop.xsd">
+
+    <bean id="eddie"
+          class="com.inspur.learning.springinaction.springidol_aop.Instrumentalist">
+        <property name="instrument">
+            <bean class="com.inspur.learning.springinaction.springidol_aop.Guitar"/>
+        </property>
+    </bean>
+
+    <bean id="aroundAudience"
+          class="com.inspur.learning.springinaction.springidol_aop.AroundAudience">
+    </bean>
+
+    <aop:config>
+        <!--</aop:aspect>-->
+        <aop:aspect ref="aroundAudience">
+            <aop:pointcut id="performance" expression=
+                    "execution(* com.inspur.learning.springinaction.springidol_aop.Performer.perform(..))"/>
+
+            <aop:around
+                    pointcut-ref="performance"
+                    method="watchPerformance"/>
+        </aop:aspect>
+    </aop:config>
+    <!--<end id="audience_aspect" />-->
+
+</beans>

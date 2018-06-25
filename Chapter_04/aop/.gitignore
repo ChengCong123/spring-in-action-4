@@ -1,0 +1,6 @@
+/build/
+/bin/
+/.gradle/
+/out/
+/.idea/
+/profiles.iml
