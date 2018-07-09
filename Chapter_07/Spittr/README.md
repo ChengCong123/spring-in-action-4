@@ -75,6 +75,24 @@ DispatcherServlet并没有实现任何解析multipart请求数据的功能。它
 ## 7.2.2　处理multipart请求
 现在已经在Spring中（或Servlet容器中）配置好了对mutipart请求的处理，那么接下来我们就可以编写控制器方法来接收上传的文件。要实现这一点，最常见的方式就是在某个控制器方法参数上添加@RequestPart注解。
 
+假设我们允许用户在注册Spittr应用的时候上传一张图片，那么我们需要修改表单：
+<br/>![](img/multipart-form.jpg)<br/>
+
+`<form>`标签现在将enctype属性设置为multipart/form-data，这会告诉浏览器以multipart数据的形式提交表单，而不是以表单数据的形式进行提交。在multipart中，每个输入域都会对应一个part。
+
+除了注册表单中已有的输入域，我们还添加了一个新的`<input>`域，其type为file。这能够让用户选择要上传的图片文件。accept属性用来将文件类型限制为JPEG、PNG以及GIF图片。根据其name属性，图片数据将会发送到multipart请求中的profilePicture part之中。
+
+现在，我们需要修改processRegistration()方法，使其能够接受上传的图片。其中一种方式是添加byte数组参数，并为其添加`@RequestPart`注解。如下为示例：
+<br/>![](img/processRegist.jpg)<br/>
+
+当注册表单提交的时候，profilePicture属性将会给定一个byte数组，这个数组中包含了请求中对应part的数据（通过`@RequestPart`指定）。如果用户提交表单的时候没有选择文件，那么这个数组会是空（而不是null）。
+
+**接受MultipartFile**
+使用上传文件的原始byte比较简单但是功能有限。因此，Spring还提供了MultipartFile接口，它为处理multipart数据提供了内容更为丰富的对象。
+- 程序清单7.5　Spring所提供的MultipartFile接口，用来处理上传的文件：
+
+
+
 # 3. 处理异常
 # 4. 为控制器添加通知
 # 5. 跨重定向请求传递数据
