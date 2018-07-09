@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import spittr.Spitter;
 import spittr.data.SpitterRepository;
 
@@ -34,7 +35,7 @@ public class SpitterController {
     model.addAttribute(new Spitter());
     return "registerForm";
   }
-  
+
 //  @RequestMapping(value="/register", method=POST)
 //  public String processRegistration(
 //      @RequestPart(value="profilePictures", required=false) Part fileBytes,
@@ -44,12 +45,21 @@ public class SpitterController {
 //    if (errors.hasErrors()) {
 //      return "registerForm";
 //    }
-//    
+//
 //    spitterRepository.save(spitter);
 //    redirectAttributes.addAttribute("username", spitter.getUsername());
 //    redirectAttributes.addFlashAttribute(spitter);
 //    return "redirect:/spitter/" + spitter.getUsername();
 //  }
+
+/*  @RequestMapping(value="/register", method=POST)
+  public String processRegistration(Spitter spitter,
+                                    RedirectAttributes redirectAttributes) throws IOException {
+    spitterRepository.save(spitter);
+    redirectAttributes.addAttribute("username", spitter.getUsername());
+    redirectAttributes.addFlashAttribute(spitter);
+    return "redirect:/spitter/{username}";
+  }*/
   
   @RequestMapping(value="/register", method=POST)
   public String processRegistration(
@@ -65,7 +75,15 @@ public class SpitterController {
     profilePicture.transferTo(new File("/tmp/spittr/" + spitter.getUsername() + ".jpg"));
     return "redirect:/spitter/" + spitter.getUsername();
   }
-  
+
+/*  @RequestMapping(value="/register", method=POST)
+  public String processRegistration(Spitter spitter, Model model){
+    spitterRepository.save(spitter);
+    model.addAttribute("username", spitter.getUsername());
+    model.addAttribute("spitterId", spitter.getId());
+    return "redirect:/spitter/{username}";
+  }*/
+
   @RequestMapping(value="/{username}", method=GET)
   public String showSpitterProfile(
           @PathVariable String username, Model model) {
