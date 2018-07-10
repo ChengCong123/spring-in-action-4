@@ -1,0 +1,179 @@
+Spring Web Flow是Spring MVC的扩展，它支持开发基于流程的应用程序。它将流程的定义与实现流程行为的类和视图分离开来。
+
+# 1　在Spring中配置Web Flow
+Spring Web Flow是构建于Spring MVC基础之上的。这意味着所有的流程请求都需要首先经过Spring MVC的DispatcherServlet。我们需要在Spring应用上下文中配置一些bean来处理流程请求并执行流程。
+
+现在，还不支持在Java中配置Spring Web Flow，所以我们别无选择，只能在XML中对其进行配置。有一些bean会使用Spring Web Flow的Spring配置文件命名空间来进行声明。
+
+## 1.1　装配流程执行器
+正如其名字所示，流程执行器（flow executor）驱动流程的执行。
+
+当用户进入一个流程时，流程执行器会为用户创建并启动一个流程执行实例。当流程暂停的时候（如为用户展示视图时），流程执行器会在用户执行操作后恢复流程。
+`<flow:flow-executor id="flowExecutor" />`
+
+## 1.2　配置流程注册表
+流程注册表（flow registry）的工作是加载流程定义并让流程执行器能够使用它们。
+在这里的声明中，流程注册表会在“/WEB-INF/flows”目录下查找流程定义，这是通过base-path属性指明的。依据`<flow:flow-location-pattern>`元素的值，任何文件名以“-flow.xml”结尾的XML文件都将视为流程定义。
+```
+  <flow:flow-registry id="flowRegistry"
+           base-path="/WEB-INF/flows">
+     <flow:flow-location-pattern value="/**/*-flow.xml" />
+  </flow:flow-registry>
+```
+
+所有的流程都是通过其ID来进行引用的。这里我们使用了`<flow:flow-location-pattern>`元素，流程的ID就是相对于base-path的路径——或者双星号所代表的路径。图8.1展示了示例中的流程ID是如何计算的。
+!!!
+
+
+作为另一种方式，我们可以去除base-path属性，而显式声明流程定义文件的位置,流程的ID是从流程定义文件的文件名中获得的：
+```
+  <flow:flow-registry id="flowRegistry">
+    <flow:flow-location path="/WEB-INF/flows/pizza/pizza-flow.xml" />
+  </flow:flow-registry>
+```
+或者直接指定ID：
+```
+  <flow:flow-registry id="flowRegistry">
+    <flow:flow-location id="pizza" path="/WEB-INF/flows/pizza/pizza-flow.xml" />
+  </flow:flow-registry>
+```
+
+## 1.3　处理流程请求
+我们在前一章曾经看到，DispatcherServlet一般将请求分发给控制器。但是对于流程而言，我们需要一个FlowHandlerMapping来帮助DispatcherServlet将流程请求发送给Spring Web Flow。在Spring应用上下文中，FlowHandlerMapping的配置如下：
+```
+  <bean class="org.springframework.webflow.mvc.servlet.FlowHandlerMapping">
+    <property name="flowRegistry" ref="flowRegistry" />
+  </bean>
+```
+FlowHandlerMapping装配了流程注册表的引用，这样它就能知道如何将请求的URL匹配到流程上。例如，如果我们有一个ID为pizza的流程，FlowHandlerMapping就会知道如果请求的URL模式（相对于应用程序的上下文路径）是“/pizza”的话，就要将其匹配到这个流程上。
+
+然而，FlowHandlerMapping的工作仅仅是将流程请求定向到Spring Web Flow上，响应请求的是FlowHandlerAdapter。FlowHandlerAdapter等同于Spring MVC的控制器，它会响应发送的流程请求并对其进行处理。FlowHandlerAdapter可以像下面这样装配成一个Spring bean，如下所示：
+```
+  <bean class="org.springframework.webflow.mvc.servlet.FlowHandlerAdapter">
+    <property name="flowExecutor" ref="flowExecutor" />
+  </bean>
+```
+这个处理适配器是DispatcherServlet和Spring Web Flow之间的桥梁。它会处理流程请求并管理基于这些请求的流程。在这里，它装配了流程执行器的引用，而后者是为所处理的请求执行流程的。
+
+
+# 2　流程的组件
+在Spring Web Flow中，流程是由三个主要元素定义的：状态、转移和流程数据。
+## 2.1　状态
+Spring Web Flow定义了五种不同类型的状态，如表8.1所示。通过选择Spring Web Flow的状态几乎可以把任意的安排功能构造成会话式的Web应用。
+**视图状态**
+在流程定义的XML文件中，`<view-state>`用于定义视图状态：
+`<view-state id="welcome"/>`
+在这个简单的示例中，id属性有两个含义。它在流程内标示这个状态。除此以外，因为在这里没有在其他地方指定视图，所以它也指定了流程到达这个状态时要展现的逻辑视图名为welcome。
+
+如果你愿意显式指定另外一个视图名，那可以使用view属性做到这一点：
+`<view-state id="welcome" view="greeting"/>`
+
+如果流程为用户展现了一个表单，你可能希望指明表单所绑定的对象。为了做到这一点，可以设置model属性：
+`<view-state id="takePayment" model="flowScope.paymentDetails"/>`
+
+**行为状态**
+视图状态会涉及到流程应用程序的用户，而行为状态则是应用程序自身在执行任务。行为状态一般会触发Spring所管理bean的一些方法并根据方法调用的执行结果转移到另一个状态。
+在流程定义XML中，行为状态使用`<action-state>`元素来声明。这里是一个例子：
+```
+    <action-state id="saveOrder">
+        <evaluate expression="pizzaFlowActions.saveOrder(order)" />
+        <transition to="thankYou" />
+    </action-state>
+```
+expression是SpEL表达式，它表明将会找到ID为pizzaFlowActions的bean并调用其saveOrder()方法。
+
+**决策状态**
+有可能流程会完全按照线性执行，从一个状态进入另一个状态，没有其他的替代路线。但是更常见的情况是流程在某一个点根据流程的当前情况进入不同的分支。
+决策状态能够在流程执行时产生两个分支。决策状态将评估一个Boolean类型的表达式，然后在两个状态转移中选择一个，这要取决于表达式会计算出true还是false。在XML流程定义中，决策状态通过`<decision-state>`元素进行定义。
+```
+    <decision-state id="checkDeliveryArea">
+      <if test="pizzaFlowActions.checkDeliveryArea(order.customer.zipCode)"
+          then="addCustomer"
+          else="deliveryWarning"/>
+    </decision-state>
+```
+**子流程状态**
+将流程分成独立的部分是个不错的主意。`<subflow-state>`允许在一个正在执行的流程中调用另一个流程。这类似于在一个方法中调用另一个方法。
+`<subflow-state>`可以这样声明：
+```
+    <subflow-state id="order" subflow="pizza/order">
+      <input name="order" value="order"/>
+      <transition on="orderCreated" to="payment" />
+    </subflow-state>
+```
+在这里，`<input>`元素用于传递订单对象作为子流程的输入。如果子流程结束的`<end-state>`状态ID为orderCreated，那么流程将会转移到名为payment的状态。
+
+**结束状态**
+最后，所有的流程都要结束。这就是当流程转移到结束状态时所做的。<end-state>元素指定了流程的结束，它一般会是这样声明的：
+`<end-state id="customerReady" />`
+
+当到达<end-state>状态，流程会结束。接下来会发生什么取决于几个因素：
+- 如果结束的流程是一个子流程，那调用它的流程将会从`<subflow-state>`处继续执行。`<end-state>`的ID将会用作事件触发从`<subflow-state>`开始的转移。
+- 如果`<end-state>`设置了view属性，指定的视图将会被渲染。视图可以是相对于流程路径的视图模板，如果添加“externalRedirect:”前缀的话，将会重定向到流程外部的页面，如果添加“flowRedirect:”将重定向到另一个流程中。
+- 如果结束的流程不是子流程，也没有指定view属性，那这个流程只是会结束而已。浏览器最后将会加载流程的基本URL地址，当前已没有活动的流程，所以会开始一个新的流程实例。
+
+## 2.2　转移
+正如我在前面所提到的，转移连接了流程中的状态。流程中除结束状态之外的每个状态，至少都需要一个转移，这样就能够知道一旦这个状态完成时流程要去向哪里。状态可以有多个转移，分别对应于当前状态结束时可以执行的不同的路径。
+
+转移使用`<transition>`元素来进行定义，它会作为各种状态元素（`<action-state>`、`<view-state>`、`<subflow-state>`）的子元素。最简单的形式就是`<transition>`元素在流程中指定下一个状态：
+`<transition to="customerReady" />`
+属性to用于指定流程的下一个状态。
+
+更常见的转移定义是基于事件的触发来进行的。在视图状态，事件通常会是用户采取的动作。在行为状态，事件是评估表达式得到的结果。而在子流程状态，事件取决于子流程结束状态的ID。在任意的事件中（这里没有任何歧义），你可以使用on属性来指定触发转移的事件：
+`<transition on="phoneEntered" to="lookupCustomer"/>`
+如果触发了phoneEntered事件，流程将会进入lookupCustomer状态。
+
+在抛出异常时，流程也可以进入另一个状态:
+```
+<transition to="registrationForm"
+            on-exception="com.springinaction.pizza.service.CustomerNotFoundException" />
+```
+
+**全局转移**
+在创建完流程之后，你可能会发现有一些状态使用了一些通用的转移。例如，如果在整个流程中到处都有如下<transition>:
+`<transition on="cancel" to="endState" />`
+
+与其在多个状态中都重复通用的转移，我们可以将`<transition>`元素作为`<global-transitions>`的子元素，把它们定义为全局转移。例如：
+```
+    <global-transitions>
+      <transition on="cancel" to="endState" />
+    </global-transitions>
+```
+定义完这个全局转移后，流程中的所有状态都会默认拥有这个cancel转移。
+
+## 2.3　流程数据
+当流程从一个状态进行到另一个状态时，它会带走一些数据。有时候，这些数据只需要很短的时间（可能只要展现页面给用户）。有时候，这些数据会在整个流程中传递并在流程结束的时候使用。
+
+**声明变量**
+流程数据保存在变量中，而变量可以在流程的各个地方进行引用。它能够以多种方式创建。在流程中创建变量的最简单形式是使用`<var>`元素：
+`<var name="order" class="com.springinaction.pizza.domain.Order"/>`
+这个变量可以在流程的任意状态进行访问。
+
+作为行为状态的一部分或者作为视图状态的入口，你有可能会使用`<evaluate>`元素来创建变量。例如：
+```
+<evaluate result="viewScope.toppingsList"
+              expression="T(com.springinaction.pizza.domain.Topping).asList()" />
+```
+`<evaluate>`元素计算了一个表达式（SpEL表达式）并将结果放到了名为toppingsList的变量中，这个变量是视图作用域的.
+
+`<set>`元素也可以设置变量的值：
+```
+<set name="flowScope.pizza"
+              value="new com.springinaction.pizza.domain.Pizza()" />
+```
+`<set>`元素与`<evaluate>`元素很类似，都是将变量设置为表达式计算的结果。这里，我们设置了一个流程作用域内的pizza变量，它的值是Pizza对象的新实例。
+
+**定义流程数据的作用域**
+流程中携带的数据会拥有不同的生命作用域和可见性，这取决于保存数据的变量本身的作用域。Spring Web Flow定义了五种不同作用域，如表8.2所示。
+!!!
+
+当使用`<var>`元素声明变量时，变量始终是流程作用域的，也就是在定义变量的流程内有效。当使用`<set>`或`<evaluate>`的时候，作用域通过name或result属性的前缀指定。
+```
+<evaluate result="viewScope.toppingsList"
+              expression="T(com.springinaction.pizza.domain.Topping).asList()" />
+```
+
+# 3　组合起来：披萨流程
+
+# 4　保护Web流程
+

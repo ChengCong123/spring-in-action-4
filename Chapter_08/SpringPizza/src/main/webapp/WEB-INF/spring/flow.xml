@@ -22,6 +22,12 @@
      <flow:flow-location-pattern value="/**/*-flow.xml" />
   </flow:flow-registry>
 
+<!--
+  <flow:flow-registry id="flowRegistry">
+    <flow:flow-location id="pizza" path="/WEB-INF/flows/pizza/pizza-flow.xml" />
+  </flow:flow-registry>
+-->
+
   <!--Maps request paths to flows in the flowRegistry-->
   <bean class="org.springframework.webflow.mvc.servlet.FlowHandlerMapping">
     <property name="flowRegistry" ref="flowRegistry" />
