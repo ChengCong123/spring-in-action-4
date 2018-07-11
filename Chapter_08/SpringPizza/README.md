@@ -22,7 +22,7 @@ Spring Web Flow是构建于Spring MVC基础之上的。这意味着所有的流�
 ```
 
 所有的流程都是通过其ID来进行引用的。这里我们使用了`<flow:flow-location-pattern>`元素，流程的ID就是相对于base-path的路径——或者双星号所代表的路径。图8.1展示了示例中的流程ID是如何计算的。
-!!!
+<br/>![](img/flow-id-calc.jpg)<br/>
 
 
 作为另一种方式，我们可以去除base-path属性，而显式声明流程定义文件的位置,流程的ID是从流程定义文件的文件名中获得的：
@@ -60,6 +60,7 @@ FlowHandlerMapping装配了流程注册表的引用，这样它就能知道如�
 在Spring Web Flow中，流程是由三个主要元素定义的：状态、转移和流程数据。
 ## 2.1　状态
 Spring Web Flow定义了五种不同类型的状态，如表8.1所示。通过选择Spring Web Flow的状态几乎可以把任意的安排功能构造成会话式的Web应用。
+<br/>![](img/status.jpg)<br/>
 **视图状态**
 在流程定义的XML文件中，`<view-state>`用于定义视图状态：
 `<view-state id="welcome"/>`
@@ -165,7 +166,7 @@ expression是SpEL表达式，它表明将会找到ID为pizzaFlowActions的bean�
 
 **定义流程数据的作用域**
 流程中携带的数据会拥有不同的生命作用域和可见性，这取决于保存数据的变量本身的作用域。Spring Web Flow定义了五种不同作用域，如表8.2所示。
-!!!
+<br/>![](img/var-scope.jpg)<br/>
 
 当使用`<var>`元素声明变量时，变量始终是流程作用域的，也就是在定义变量的流程内有效。当使用`<set>`或`<evaluate>`的时候，作用域通过name或result属性的前缀指定。
 ```
@@ -176,7 +177,7 @@ expression是SpEL表达式，它表明将会找到ID为pizzaFlowActions的bean�
 # 3　组合起来：披萨流程
 ## 3.1　定义基本流程
 图8.2阐述了这个流程。
-！！！
+<br/>![](img/pizza-flow.jpg)<br/>
 
 以下的程序清单8.1展示了如何使用Spring Web Flow的XML流程定义来实现披萨订单的整体流程。
 ```
@@ -243,10 +244,10 @@ Spring Web Flow为视图的用户提供了一个flowExecutionUrl变量，它包�
 
 ## 3.2　收集顾客信息
 这个流程不是线性的而是在好几个地方根据不同的条件有了分支。例如，在查找顾客后，流程可能结束（如果找到了顾客），也有可能转移到注册表单（如果没有找到顾客）。同样，在checkDeliveryArea状态，顾客有可能会被警告也有可能不被警告他们的地址在配送范围之外。
-！！！
+<br/>![](img/multi-branch-flow.jpg)<br/>
 
 程序清单8.4　使用Web流程来识别饥饿的披萨顾客
-！！！
+<br/>![](img/multi-branch-flow-xml.jpg)<br/>
 
 **询问电话号码**
 ```
@@ -340,5 +341,99 @@ registrationForm状态是要求用户填写配送地址的。就像我们之前�
 另一方面，如果在识别顾客流程的任意地方触发了cancel事件，将会通过ID为cancel的结束状态退出流程，这也会在披萨流程中触发cancel事件并导致转移（通过全局转移）到披萨流程的结束状态。
 
 ## 3.3　构建订单
-# 4　保护Web流程
+在识别完顾客之后，主流程的下一件事就是确定他们想要什么类型的披萨。订单子流程就是用于提示用户创建披萨并将其放入订单中的，如图8.4所示。
+<br/>![](img/order-sub-flow.jpg)<br/>
 
+showOrder状态位于订单子流程的中心位置。这是用户进入这个流程时看到的第一个状态，它也是用户在添加披萨到订单后要转移到的状态。它展现了订单的当前状态并允许用户添加其他的披萨到订单中。
+
+要添加披萨到订单时，流程会转移到createPizza状态。这是另外一个视图状态，允许用户选择披萨的尺寸和面饼上面的配料。在这里，用户可以添加或取消披萨，两种事件都会使流程转移回showOrder状态。
+
+从showOrder状态，用户可能提交订单也可能取消订单。两种选择都会结束订单子流程，但是主流程会根据选择不同进入不同的执行路径。如下显示了如何将图中所阐述的内容转变成Spring Web Flow定义。
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="http://www.springframework.org/schema/webflow"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.springframework.org/schema/webflow
+  http://www.springframework.org/schema/webflow/spring-webflow-2.0.xsd">
+
+    <input name="order" required="true" />
+
+    <!-- Order -->
+    <view-state id="showOrder">
+        <transition on="createPizza" to="createPizza" />
+        <transition on="checkout" to="orderCreated" />
+        <transition on="cancel" to="cancel" />
+    </view-state>
+
+    <view-state id="createPizza" model="flowScope.pizza">
+        <on-entry>
+          <set name="flowScope.pizza"
+              value="new com.springinaction.pizza.domain.Pizza()" />
+
+          <evaluate result="viewScope.toppingsList"
+              expression="T(com.springinaction.pizza.domain.Topping).asList()" />
+        </on-entry>
+        <transition on="addPizza" to="showOrder">
+          <evaluate expression="order.addPizza(flowScope.pizza)" />
+        </transition>
+        <transition on="cancel" to="showOrder" />
+    </view-state>
+
+
+    <!-- End state -->
+    <end-state id="cancel" />
+    <end-state id="orderCreated" />
+</flow>
+```
+这里使用的`<input>`元素实际上就定义了这个子流程的签名。这个流程需要一个名为order的参数。
+`<on-entry>`元素添加了一个新的Pizza对象到流程作用域内，当表单提交时，表单的内容会填充到该对象中。
+
+## 3.4　支付
+在披萨流程要结束的时候，最后的子流程提示用户输入他们的支付信息。这个简单的流程如图8.5所示。
+<br/>![](img/pay-sub-flow.jpg)<br/>
+
+像订单子流程一样，支付子流程也使用<input>元素接收一个Order对象作为输入。
+
+你可以看到，进入支付子流程的时候，用户会到达takePayment状态。这是一个视图状态，在这里用户可以选择使用信用卡、支票或现金进行支付。提交支付信息后，将进入verifyPayment状态。这是一个行为状态，它将校验支付信息是否可以接受。
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="http://www.springframework.org/schema/webflow"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.springframework.org/schema/webflow
+  http://www.springframework.org/schema/webflow/spring-webflow-2.0.xsd">
+
+    <input name="order" required="true"/>
+
+    <view-state id="takePayment" model="flowScope.paymentDetails">
+        <on-entry>
+          <set name="flowScope.paymentDetails"
+              value="new com.springinaction.pizza.domain.PaymentDetails()" />
+
+          <evaluate result="viewScope.paymentTypeList"
+              expression="T(com.springinaction.pizza.domain.PaymentType).asList()" />
+        </on-entry>
+        <transition on="paymentSubmitted" to="verifyPayment" />
+        <transition on="cancel" to="cancel" />
+    </view-state>
+
+    <action-state id="verifyPayment">
+        <evaluate result="order.payment" expression=
+            "pizzaFlowActions.verifyPayment(flowScope.paymentDetails)" />
+        <transition to="paymentTaken" />
+    </action-state>
+
+    <!-- End state -->
+    <end-state id="cancel" />
+    <end-state id="paymentTaken" />
+</flow>
+```
+在我们结束Spring Web Flow话题之前，让我们快速了解一下如何对流程及其状态的访问增加安全保护。
+
+# 4　保护Web流程
+在下一章中，我们将会看到如何使用Spring Security来保护Spring应用程序。但现在我们讨论的是Spring Web Flow，让我们快速地看一下Spring Web Flow是如何结合Spring Security支持流程级别的安全性的。
+```
+    <view-state id="restricted">
+        <secured attributes="ROLE_ADMIN" match="all"/>
+    </view-state>
+```
