@@ -174,6 +174,171 @@ expression是SpEL表达式，它表明将会找到ID为pizzaFlowActions的bean�
 ```
 
 # 3　组合起来：披萨流程
+## 3.1　定义基本流程
+图8.2阐述了这个流程。
+！！！
 
+以下的程序清单8.1展示了如何使用Spring Web Flow的XML流程定义来实现披萨订单的整体流程。
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="http://www.springframework.org/schema/webflow"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.springframework.org/schema/webflow
+  http://www.springframework.org/schema/webflow/spring-webflow-2.0.xsd">
+
+    <var name="order" class="com.springinaction.pizza.domain.Order"/>
+
+    <!-- Customer -->
+    <subflow-state id="customer" subflow="pizza/customer">
+      <input name="order" value="order"/>
+      <transition on="customerReady" to="order" />
+    </subflow-state>
+
+    <!-- Order -->
+    <subflow-state id="order" subflow="pizza/order">
+      <input name="order" value="order"/>
+      <transition on="orderCreated" to="payment" />
+    </subflow-state>
+
+    <!-- Payment -->
+    <subflow-state id="payment" subflow="pizza/payment">
+      <input name="order" value="order"/>
+      <transition on="paymentTaken" to="saveOrder"/>
+    </subflow-state>
+
+    <action-state id="saveOrder">
+        <evaluate expression="pizzaFlowActions.saveOrder(order)" />
+        <transition to="thankYou" />
+    </action-state>
+
+    <view-state id="thankYou">
+      <transition to="endState" />
+    </view-state>
+
+    <!-- End state -->
+    <end-state id="endState" />
+
+    <global-transitions>
+      <transition on="cancel" to="endState" />
+    </global-transitions>
+</flow>
+```
+在流程定义中，我们看到的第一件事就是order变量的声明。每次流程开始的时候，都会创建一个Order实例。Order类会带有关于订单的所有信息，包含顾客信息、订购的披萨列表以及支付详情。
+
+流程定义的主要组成部分是流程的状态。默认情况下，流程定义文件中的第一个状态也会是流程访问中的第一个状态。在本例中，也就是identifyCustomer状态（一个子流程）。但是如果你愿意的话，你可以通过`<flow>`元素的start-state属性将任意状态指定为开始状态。
+
+识别顾客、构造披萨订单以及支付这样的活动太复杂了，并不适合将其强行塞入一个状态。这是我们为何在后面将其单独定义为流程的原因。
+
+流程变量order将在前三个状态中进行填充并在第四个状态中进行保存。identifyCustomer子流程状态使用了`<output>`元素来填充order的customer属性，将其设置为顾客子流程收到的输出。buildOrder和takePayment状态使用了不同的方式，它们使用`<input>`将order流程变量作为输入，这些子流程就能在其内部填充order对象。
+
+在订单得到顾客、一些披萨以及支付细节后，就可以对其进行保存了。saveOrder是处理这个任务的行为状态。它使用`<evaluate>`来调用ID为pizzaFlowActions的bean的saveOrder()方法，并将保存的订单对象传递进来。订单完成保存后，它会转移到thankYou。
+
+thankYou状态是一个简单的视图状态，后台使用了“/WEB-INF/flows/pizza/thankYou.jsp”这个JSP文件，包含如下所示：
+```
+<a href='${flowExecutionUrl}&_eventId=finished'>Finish</a>
+```
+Spring Web Flow为视图的用户提供了一个flowExecutionUrl变量，它包含了流程的URL。结束链接将一个“_eventId”参数关联到URL上，以便回到Web流程时触发finished事件。这个事件将会让流程到达结束状态。
+
+流程将会在结束状态完成。鉴于在流程结束后没有下一步做什么的具体信息，流程将会重新从identifyCustomer状态开始，以准备接受另一个披萨订单。
+
+## 3.2　收集顾客信息
+这个流程不是线性的而是在好几个地方根据不同的条件有了分支。例如，在查找顾客后，流程可能结束（如果找到了顾客），也有可能转移到注册表单（如果没有找到顾客）。同样，在checkDeliveryArea状态，顾客有可能会被警告也有可能不被警告他们的地址在配送范围之外。
+！！！
+
+程序清单8.4　使用Web流程来识别饥饿的披萨顾客
+！！！
+
+**询问电话号码**
+```
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="form" uri="http://www.springframework.org/tags/form" %>
+<html>
+
+  <head><title>Spring Pizza</title></head>
+
+  <body>
+  	<h2>Welcome to Spring Pizza!!!</h2>
+
+		<form:form>
+      <input type="hidden" name="_flowExecutionKey"
+             value="${flowExecutionKey}"/>
+		  <input type="text" name="phoneNumber"/><br/>
+      <input type="submit" name="_eventId_phoneEntered" value="Lookup Customer" />
+		</form:form>
+	</body>
+</html>
+```
+这个简单的表单提示用户输入其电话号码。但是表单中有两个特殊的部分来驱动流程继续。
+
+首先要注意的是隐藏的“_flowExecutionKey”输入域。当进入视图状态时，流程暂停并等待用户采取一些行为。赋予视图的流程执行key（flow execution key）就是一种返回流程的“回程票”（claim ticket）。当用户提交表单时，流程执行key会在“_flowExecutionKey”输入域中返回并在流程暂停的位置进行恢复。
+
+还要注意的是提交按钮的名字。按钮名字的“_eventId_”部分是提供给Spring Web Flow的一个线索，它表明了接下来要触发事件。当点击这个按钮提交表单时，会触发phoneEntered事件进而转移到lookupCustomer。
+
+**查找顾客**
+当欢迎表单提交后，顾客的电话号码将包含在请求参数中并准备用于查询顾客。lookupCustomer状态的`<evaluate>`元素是查找发生的地方。它将电话号码从请求参数中抽取出来并传递到pizzaFlowActions bean的lookupCustomer()方法中。
+
+**注册新顾客**
+registrationForm状态是要求用户填写配送地址的。就像我们之前看到的其他视图状态，它将被渲染成JSP。JSP文件如下所示。
+```
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="form" uri="http://www.springframework.org/tags/form" %>
+<html>
+
+  <head><title>Spring Pizza</title></head>
+
+  <body>
+    <h2>Customer Registration</h2>
+
+    <form:form commandName="order">
+      <input type="hidden" name="_flowExecutionKey"
+             value="${flowExecutionKey}"/>
+      <b>Phone number: </b><form:input path="customer.phoneNumber"/><br/>
+      <b>Name: </b><form:input path="customer.name"/><br/>
+      <b>Address: </b><form:input path="customer.address"/><br/>
+      <b>City: </b><form:input path="customer.city"/><br/>
+      <b>State: </b><form:input path="customer.state"/><br/>
+      <b>Zip Code: </b><form:input path="customer.zipCode"/><br/>
+      <input type="submit" name="_eventId_submit"
+             value="Submit" />
+      <input type="submit" name="_eventId_cancel"
+             value="Cancel" />
+    </form:form>
+	</body>
+</html>
+```
+**检查配送区域**
+在顾客提供其地址后，我们需要确认他的住址在配送范围之内。如果Spizza不能派送给他们，那么我们要让顾客知道并建议他们自己到店面里取走披萨。
+为了做出这个判断，我们使用了决策状态。决策状态checkDeliveryArea有一个<if>元素.
+
+如果顾客在配送区域内的话，那流程转移到addCustomer状态。否则，顾客被带入到deliveryWarning视图状态。deliveryWarning背后的视图就是“/WEB-INF/flows/pizza/customer/deliveryWarning.jspx”，如下所示：
+程序清单8.7　告知顾客不能将披萨配送到他们的地址
+```
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<html>
+  <head><title>Spring Pizza</title></head>
+
+  <body>
+		<h2>Delivery Unavailable</h2>
+
+		<p>The address is outside of our delivery area. The order
+		may still be taken for carry-out.</p>
+
+		<a href="${flowExecutionUrl}&_eventId=accept">Accept</a> |
+		<a href="${flowExecutionUrl}&_eventId=cancel">Cancel</a>
+  </body>
+</html>
+```
+
+**存储顾客数据**
+当流程抵达addCustomer状态时，用户已经输入了他们的地址。为了将来使用，这个地址需要以某种方式存储起来（可能会存储在数据库中）。
+
+**结束流程**
+一般来讲，流程的结束状态并不会那么有意思。但是这个流程中，它不仅仅只有一个结束状态，而是两个。
+
+一方面，当customer流程走完所有正常的路径后，它最终会到达ID为customerReady的结束状态。当调用它的披萨流程恢复时，它会接收到一个customerReady事件，这个事件将使得流程转移到buildOrder状态。要注意的是customerReady结束状态包含了一个<output>元素。在流程中这个元素等同于Java中的return语句。它从子流程中传递一些数据到调用流程。在本示例中，<output>元素返回customer流程变量，这样在披萨流程中，就能够将identifyCustomer子流程的状态
+指定给订单。
+另一方面，如果在识别顾客流程的任意地方触发了cancel事件，将会通过ID为cancel的结束状态退出流程，这也会在披萨流程中触发cancel事件并导致转移（通过全局转移）到披萨流程的结束状态。
+
+## 3.3　构建订单
 # 4　保护Web流程
 
