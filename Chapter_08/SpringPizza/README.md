@@ -1,3 +1,6 @@
+
+使用Spring Web Flow
+========================    
 Spring Web Flow是Spring MVC的扩展，它支持开发基于流程的应用程序。它将流程的定义与实现流程行为的类和视图分离开来。
 
 # 1　在Spring中配置Web Flow

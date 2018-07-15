@@ -68,7 +68,7 @@ DispatcherServlet并没有实现任何解析multipart请求数据的功能。它
         new MultipartConfigElement("/tmp/spittr/uploads", 2097152, 4194304, 0));
   }
 ```
-如果我们使用更为传统的web.xml来配置MultipartConfigElement的话，那么可以使用<servlet>中的<multipart-config>元素，如下所示：
+如果我们使用更为传统的web.xml来配置MultipartConfigElement的话，那么可以使用`<servlet>`中的`<multipart-config>`元素，如下所示：
 <br/>![](img/xml-multipart.jpg)<br/>
 
 > StandardServletMultipartResolver会是最佳的选择，但是如果我们需要将应用部署到非Servlet 3.0的容器中，那么就得需要替代的方案。Spring内置了CommonsMultipartResolver，可以作为StandardServletMultipartResolver的替代方案。
