@@ -318,3 +318,6 @@ postForObject()和postForEntity()对POST请求的处理方式与发送GET请求�
 
 现在，我们可以传入HttpEntity来调用exchange()：
 <br/>![](img/exchange.jpg)<br/>
+
+# 源码
+https://github.com/myitroad/spring-in-action-4/tree/master/Chapter_16
