@@ -219,6 +219,49 @@ connectionFactory和queryName属性指定了RPC消息如何被投递——在这
 多年来，JMS一直是Java应用中主流的消息解决方案。但是对于Java和Spring开发者来说，JMS并不是唯一的消息可选方案。在过去的几年
 中，高级消息队列协议（Advanced Message Queuing Protocol ，AMQP）得到了广泛的关注。
 # 3　使用AMQP实现消息功能
+AMQP的线路层协议规范了消息的格式，消息在生产者和消费者间传送的时候会遵循这个格式。这样AMQP在互相协作方面就要优于JMS——它不仅能跨不同的AMQP实现，还能跨语言和平台。（AMQP能够不局限于Java语言和平台，那说明你已经快速抓到了重点。）
+
+## 3.1　AMQP简介
+与之不同的是，AMQP的生产者并不会直接将消息发布到队列中。AMQP在消息的生产者以及传递信息的队列之间引入了一种间接的机制：Exchange。这种关系如图17.8所示。
+<br/>![](img/amqp.jpg)<br/>
+
+可以看到，消息的生产者将信息发布到一个Exchange。Exchange会绑定到一个或多个队列上，它负责将信息路由到队列上。信息的消费者会从队列中提取数据并进行处理。
+
+AMQP定义了四种不同类型的Exchange，每一种都有不同的路由算法，这些算法决定了是否要将信息放到队列中。根据Exchange的算法不同，它可能会使用消息的routing key和/或参数，并将其与Exchange和队列之间binding的routing key和参数进行对比。（routing key可以大致理解为Email的收件人地址，指定了预期的接收者。）如果对比结果满足相应的算法，那么消息将会路由到队列上。否则的话，将不会路由到队列上。
+
+四种标准的AMQP Exchange如下所示：
+- Direct：如果消息的routing key与binding的routing key直接匹配的话，消息将会路由到该队列上；
+- Topic：如果消息的routing key与binding的routing key符合通配符匹配的话，消息将会路由到该队列上；
+- Headers：如果消息参数表中的头信息和值都与bingding参数表中相匹配，消息将会路由到该队列上；
+- Fanout：不管消息的routing key和参数表的头信息/值是什么，消息将会路由到所有队列上。
+
+## 3.2　配置Spring支持AMQP消息
+当我们第一次使用Spring JMS抽象的时候，首先配置了一个连接工厂。与之类似，使用Spring AMQP前也要配置一个连接工厂。只不过，所要配置的不是JMS的连接工厂，而是需要配置AMQP的连接工厂。更具体来讲，需要配置RabbitMQ连接工厂。
+
+**什么是RabbitMQ**
+```
+ <connection-factory id="connectionFactory" 
+    host="${rabbitmq.host}" 
+    port="${rabbitmq.port}"
+    username="${rabbitmq.username}"
+    password="${rabbitmq.password}" />
+```
+
+**声明队列、Exchange以及binding**
+表17.3　Spring AMQP的rabbit命名空间包含了多个元素，用来创建队列、Exchange以及将它们结合在一起的binding
+<br/>![](img/rabbitSN.jpg)<br/>
+
+这些配置元素要与<admin>元素一起使用。<admin>元素会创建一个RabbitMQ管理组件（administrative component），它会自动创建（如果它们在RabbitMQ代理中尚未存在的话）上述这些元素所声明的队列、Exchange以及binding。
+
+例如，如果你希望声明名为spittle.alert.queue的队列，只需要在Spring配置中添加如下的两个元素即可：
+```
+<admin connection-factory="connectionFactory"/>
+<queue id="spittleAlertQueue" name="spittle.alerts" />
+```
+对于简单的消息来说，我们只需做这些就足够了。这是因为默认会有一个没有名称的direct Exchange，所有的队列都会绑定到这个Exchange上，并且routing key与队列的名称相同。在这个简单的配置中，我们可以将消息发送到这个没有名称的Exchange上，并将routing key设定为spittle.alert.queue，这样消息就会路由到这个队列中。实际上，我们重新创建了JMS的点对点模型。
+
+## 3.3　使用RabbitTemplate发送消息
+
 
 # 源码
 https://github.com/myitroad/spring-in-action-4/tree/master/Chapter_17
