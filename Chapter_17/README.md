@@ -261,7 +261,93 @@ AMQP定义了四种不同类型的Exchange，每一种都有不同的路由算�
 对于简单的消息来说，我们只需做这些就足够了。这是因为默认会有一个没有名称的direct Exchange，所有的队列都会绑定到这个Exchange上，并且routing key与队列的名称相同。在这个简单的配置中，我们可以将消息发送到这个没有名称的Exchange上，并将routing key设定为spittle.alert.queue，这样消息就会路由到这个队列中。实际上，我们重新创建了JMS的点对点模型。
 
 ## 3.3　使用RabbitTemplate发送消息
+配置RabbitTemplate的最简单方式是使用rabbit命名空间的`<template>`元素，如下所示：
+```xml
+  <template id="rabbitTemplate" 
+          connection-factory="connectionFactory" 
+          routing-key="spittle.alerts" />
+```
+现在，要发送消息的话，我们只需要将模板bean注入到AlertServiceImpl中，并使用它来发送Spittle。如下的程序清单展现了一个新版本的AlertServiceImpl，它使用RabbitTemplate代替JmsTemplate来发送Spittle提醒。
+```java
+public class AlertServiceImpl implements AlertService {
 
+  private RabbitTemplate rabbit;
+
+  @Autowired
+  public AlertServiceImpl(RabbitTemplate rabbit) {
+    this.rabbit = rabbit;
+  }
+
+  public void sendSpittleAlert(Spittle spittle) {
+    rabbit.convertAndSend("spittle.alert.exchange", 
+                          "spittle.alerts", 
+                          spittle);
+  }
+
+}
+```
+
+可以看到，现在sendSpittleAlert()调用RabbitTemplate的convertAndSend()方法，其中RabbitTemplate是被注入进来的。它传入了三个参数：Exchange的名称、routing key以及要发送的对象。注意，这里并没有指定消息该路由到何处、要发送给哪个队列以及期望哪个消费者来获取消息。
+
+convertAndSend()方法，它会自动将对象转换为Message。它需要一个消息转换器的帮助来完成该任务，默认的消息转换器是SimpleMessageConverter，它适用于String、Serializable实例以及字节数组。Spring AMQP还提供了其他几个有用的消息转换器，其中包括使用JSON和XML数据的消息转换器。
+
+## 3.4　接收AMQP消息
+**使用RabbitTemplate来接收消息**
+RabbitTemplate提供了多个接收信息的方法。最简单就是receive()方法，它位于消息的消费者端，对应于RabbitTemplate的send()方法。借助receive()方法，我们可以从队列中获取一个Message对象：
+```java
+Message message=rabbit.receive("spittle.alert.queue");
+```
+或者，如果愿意的话，你还可以配置获取消息的默认队列，这是通过在配置模板的时候，设置queue属性实现的：
+```xml
+  <template id="rabbitTemplate" 
+          connection-factory="connectionFactory" 
+          exchange="spittle.alert.exchange"
+          routing-key="spittle.alerts" 
+          queue="spittle.alert.queue"/>
+```
+这样的话，我们在调用receive()方法的时候，不需要设置任何参数就能从默认队列中获取消息了：
+```java
+Message message=rabbit.receive();
+```
+在获取到Message对象之后，我们可能需要将它body属性中的字节数组转换为想要的对象。就像在发送的时候将领域对象转换为Message一样，将接收到的Message转换为领域对象同样非常繁琐。因此，我们可以考虑使用RabbitTemplate的receiveAndConvert()方法作为替代方案：
+```java
+Spittle spittle = (Spittle)rabbit.receiveAndConvert();
+```
+
+receiveAndConvert()方法会使用与sendAndConvert()方法相同的消息转换器，将Message对象转换为原始的类型。
+
+调用receive()和receiveAndConvert()方法都会立即返回，如果队列中没有等待的消息时，将会得到null。这就需要我们来管理轮询（polling）以及必要的线程，实现队列的监控。
+
+我们并非必须同步轮询并等待消息到达，Spring AMQP还提供了消息驱动POJO的支持，这不禁使我们回忆起Spring JMS中的相同特性。让我们看一下如何通过消息驱动AMQP POJO的方式来接收消息。
+
+**定义消息驱动的AMQP POJO**
+```java
+public class SpittleAlertHandler {
+  
+  public void handleSpittleAlert(Spittle spittle) {
+    System.out.println(spittle.getMessage());
+  }
+
+}
+```
+我们还需要在Spring应用上下文中将SpittleAlertHandler声明为一个bean：
+```xml
+<beans:bean id="spittleListener" class="spittr.alerts.SpittleAlertHandler" />
+```
+
+最后，我们需要声明一个监听器容器和监听器，当消息到达的时候，能够调用SpittleAlertHandler。在基于JMS的MDP中，我们做过相同的事情，但是基于AMQP的MDP在配置上有一个细微的差别：
+```xml
+  <listener-container connection-factory="connectionFactory" >
+    <listener ref="spittleListener" 
+              method="handleSpittleAlert"  
+              queues="spittleAlertQueue" />
+    </listener-container>
+```
+其中：
+```xml
+
+<queue id="spittleAlertQueue" name="spittle.alert.queue" />
+```
 
 # 源码
 https://github.com/myitroad/spring-in-action-4/tree/master/Chapter_17
