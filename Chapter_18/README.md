@@ -96,7 +96,7 @@ WebSocket是一个相对比较新的规范。虽然它早在2011年底就实现�
 - XML完成相同的配置效果：
 <br/>![](img/xmlConfSockjs.jpg)<br/>
 
-要在客户端使用SockJS，需要确保加载了SockJS客户端库。具体的做法在很大程度上依赖于使用JavaScript模块加载器（如require.js或curl.js）还是简单地使用<script>标签加载JavaScript库。加载SockJS客户端库的最简单办法是使用<script>标签从SockJS CDN中进行加载，如下所示：
+要在客户端使用SockJS，需要确保加载了SockJS客户端库。具体的做法在很大程度上依赖于使用JavaScript模块加载器（如require.js或curl.js）还是简单地使用`<script>`标签加载JavaScript库。加载SockJS客户端库的最简单办法是使用`<script>`标签从SockJS CDN中进行加载，如下所示：
 ```xml
 <script src="http://cdn.sockjs.org/sockjs-0.3.min.js"></script>
 ```
@@ -147,7 +147,7 @@ public class WebSocketStompConfig extends AbstractWebSocketMessageBrokerConfigur
 上述配置，它重载了registerStompEndpoints()方法，将“/marcopolo”注册为STOMP端点。这个路径与之前发送和接收消息的目的地路径有所不同。这是一个端点，客户端在订阅或发布消息到目的地路径前，要连接该端点。
 
 WebSocketStompConfig还通过重载configureMessageBroker()方法配置了一个简单的消息代理。消息代理将会处理前缀为“/topic”和“/queue”的消息。除此之外，发往应用程序的消息将会带有“/app”前缀。图18.2展现了这个配置中的消息流。
-！！！
+<br/>![](img/img18-2.jpg)<br/>
 
 **启用STOMP代理中继**
 对于生产环境下的应用来说，你可能会希望使用真正支持STOMP的代理来支撑WebSocket消息，如RabbitMQ或ActiveMQ。这样的代理提供了可扩展性和健壮性更好的消息功能，当然它们也会完整支持STOMP命令。我们需要根据相关的文档来为STOMP搭建代理。搭建就绪之后，就可以使用STOMP代理来替换内存代理了，只需按照如下方式重载configureMessageBroker()方法即可：
@@ -218,7 +218,7 @@ public class Shout {
 因为我们现在处理的不是HTTP，所以无法使用Spring的HttpMessageConverter实现将负载转换为Shout对象。Spring 4.0提供了几个消息转换器，作为其消息API的一部分。表18.1描述了这些消息转换器，在处理STOMP消息的时候可能会用到它们。
 
 表18.1　Spring能够使用某一个消息转换器将消息负载转换为Java类型
-！！！
+<br/>![](img/table18-1.jpg)<br/>
 
 **处理订阅**
 @SubscribeMapping的主要应用场景是实现请求-回应模式。在请求-回应模式中，客户端订阅某一个目的地，然后预期在这个目的地上获得一个一次性的响应。
@@ -238,15 +238,142 @@ public class Shout {
 
 **编写JavaScript客户端**
 程序清单18.7　借助STOMP库，通过JavaScript发送消息
-!!!
+<br/>![](img/code18-7.jpg)<br/>
 在本例中，URL引用的是程序清单18.5中所配置的STOMP端点（不包括应用的上下文路径“/stomp”）。
 
 但是，这里的区别在于，我们不再直接使用SockJS，而是通过调用Stomp.over(sock)创建了一个STOMP客户端实例。这实际上封装了SockJS，这样就能在WebSocket连接上发送STOMP消息。
 
 ## 3.3　发送消息到客户端
+WebSocket通常视为服务器发送数据给浏览器的一种方式，采用这种方式所发送的数据不必位于HTTP请求的响应中。使用Spring和WebSocket/STOMP的话，该如何与基于浏览器的客户端通信呢？
+Spring提供了两种发送数据给客户端的方法：
+- 作为处理消息或处理订阅的附带结果；
+- 使用消息模板。
 
+**在处理消息之后，发送消息**
+```java
+@MessageMapping("/marco")
+  public Shout handleShout(Shout incoming) {
+    logger.info("Received message: " + incoming.getMessage());
+    Shout outgoing = new Shout();
+    outgoing.setMessage("Polo!");
+    return outgoing;
+  }
+```
+
+当@MessageMapping注解标示的方法有返回值的时候，返回的对象将会进行转换（通过消息转换器）并放到STOMP帧的负载中，然后发送给消息代理。
+
+默认情况下，帧所发往的目的地会与触发处理器方法的目的地相同，只不过会添加上“/topic”前缀。就本例而言，这意味着handleShout()方法所返回的Shout对象会写入到STOMP帧的负载中，并发布到“/topic/marco”目的地。不过，我们可以通过为方法添加@SendTo注解，重载目的地：
+```java
+@MessageMapping("/marco")
+@SendTo("/topic/shout")
+  public Shout handleShout(Shout incoming) {
+    logger.info("Received message: " + incoming.getMessage());
+    Shout outgoing = new Shout();
+    outgoing.setMessage("Polo!");
+    return outgoing;
+  }
+```
+按照这个@SendTo注解，消息将会发布到“/topic/shout”。所有订阅这个主题的应用（如客户端）都会收到这条消息。
+按照类似的方式，@SubscribeMapping注解标注的方式也能发送一条消息，作为订阅的回应。
+```java
+  @SubscribeMapping("/marco")
+  public Shout handleSubscription(){
+    Shout outgoing = new Shout();
+    outgoing.setMessage("Polo!");
+    return outgoing;
+  }
+```
+@SubscribeMapping的区别在于这里的Shout消息将会直接发送给客户端，而不必经过消息代理。如果你为方法添加@SendTo注解的话，那么消息将会发送到指定的目的地，这样会经过代理。
+
+**在应用的任意地方发送消息**
+@MessageMapping和@SubscribeMapping提供了一种很简单的方式来发送消息，这是接收消息或处理订阅的附带结果。不过，Spring的SimpMessagingTemplate能够在应用的任何地方发送消息，甚至不必以首先接收一条消息作为前提。
+
+我们不必要求用户刷新页面，而是让首页订阅一个STOMP主题，在Spittle创建的时候，该主题能够收到Spittle更新的实时feed。在首页中，我们需要添加如下的JavaScript代码块：
+<br/>![](img/jsSubcrbTopic.jpg)<br/>
+
+Handlebars库将Spittle数据渲染为HTML并插入到列表中。Handlebars模板定义在一个单独的`<script>`标签中，如下所示：
+<br/>![](img/spittleTmplt.jpg)<br/>
+在服务器端，我们可以使用SimpMessagingTemplate将所有新创建的Spittle以消息的形式发布到“/topic/spittlefeed”主题上。如下程序清单展现的SpittleFeedServiceImpl就是实现该功能的简单服务：
+
+程序清单18.8　SimpMessagingTemplate能够在应用的任何地方发布消息
+```java
+@Service
+public class SpittleFeedServiceImpl implements SpittleFeedService {
+
+	private SimpMessageSendingOperations messaging;
+
+	@Autowired
+	public SpittleFeedServiceImpl(SimpMessageSendingOperations messaging) {
+		this.messaging = messaging;
+	}
+
+	public void broadcastSpittle(Spittle spittle) {
+		messaging.convertAndSend("/topic/spittlefeed", spittle);
+	}
+
+}
+```
+在这个场景下，我们希望所有的客户端都能及时看到实时的Spittle feed，这种做法是很好的。但有的时候，我们希望发送消息给指定的用户，而不是所有的客户端。
 
 # 4　为目标用户发送消息
+但是，如果你知道用户是谁的话，那么就能处理与某个用户相关的消息，而不仅仅是与所有客户端相关联。好消息是我们已经了解了如何识别用户。通过使用与第9章相同的认证机制，我们可以使用Spring Security来认证用户，并为目标用户处理消息。
+
+在使用Spring和STOMP消息功能的时候，我们有三种方式利用认证用户：
+- @MessageMapping和@SubscribeMapping标注的方法能够使用Principal来获取认证用户；
+- @MessageMapping、@SubscribeMapping和@MessageException方法返回的值能够以消息的形式发送给认证用户；
+- SimpMessagingTemplate能够发送消息给特定用户。
+
+## 4.1　在控制器中处理用户的消息
+在控制器的@MessageMapping或@SubscribeMapping方法中，处理消息时有两种方式了解用户信息。在处理器方法中，通过简单地添加一个Principal参数，这个方法就能知道用户是谁并利用该信息关注此用户相关的数据。除此之外，处理器方法还可以使用@SendToUser注解，表明它的返回值要以消息的形式发送给某个认证用户的客户端（只发送给该客户端）。
+```java
+  @MessageMapping("/spittle")
+  @SendToUser("/queue/notifications")
+  public Notification handleSpittle(Principal principal, SpittleForm form) {
+	  Spittle spittle = new Spittle(principal.getName(), form.getText(), new Date());
+	  spittleRepo.save(spittle);
+	  feedService.broadcastSpittle(spittle);
+	  return new Notification("Saved Spittle for user: " + principal.getName());
+  }
+```
+JavaScript客户端代码：
+```javascript
+stomp.subscribe("/user/queue/notifications", handleNotification);
+```
+在内部，以“/user”作为前缀的目的地将会以特殊的方式进行处理。这种消息不会通过AnnotationMethodMessageHandler（像应用消息那样）来处理，也不会通过SimpleBrokerMessageHandler或StompBrokerRelayMessageHandler（像代理消息那样）来处理，以“/user”为前缀的消息将会通过UserDestinationMessageHandler进行处理，如图18.4所示。
+!!!
+
+## 4.2　为指定用户发送消息
+除了convertAndSend()以外，SimpMessagingTemplate还提供了convertAndSendToUser()方法。按照名字就可以判断出来，convertAndSendToUser()方法能够让我们给特定用户发送消息。
+
+为了阐述该功能，我们要在Spittr应用中添加一项特性，当其他用户提交的Spittle提到某个用户时，将会提醒该用户。例如，如果Spittle文本中包含“@jbauer”，那么我们就应该发送一条消息给使用“jbauer”用户名登录的客户端。如下程序清单中的broadcastSpittle()方法使用了convertAndSendToUser()，从而能够提醒所谈论到的用户。
+
+```java
+@Service
+public class SpittleFeedServiceImpl implements SpittleFeedService {
+
+	private SimpMessagingTemplate messaging;
+	private Pattern pattern = Pattern.compile("\\@(\\S+)");
+
+	@Autowired
+	public SpittleFeedServiceImpl(SimpMessagingTemplate messaging) {
+		this.messaging = messaging;
+	}
+
+	public void broadcastSpittle(Spittle spittle) {
+		messaging.convertAndSend("/topic/spittlefeed", spittle);
+
+		Matcher matcher = pattern.matcher(spittle.getMessage());
+		if (matcher.find()) {
+			String username = matcher.group(1);
+			messaging.convertAndSendToUser(username, "/queue/notifications",
+					new Notification("You just got mentioned!"));
+		}
+	}
+
+}
+```
+在broadcastSpittle()中，如果给定Spittle对象的消息中包含了类似于用户名的内容（也就是以“@”开头的文本），那么一个新的Notification将会发送到名为“/queue/notifications”的目的地上。因此，如果Spittle中包含“@jbauer”的话，Notification将会发送到“/user/jbauer/queue/notifications”目的地上。
+
 # 5　处理消息异常
 
 # 源码
