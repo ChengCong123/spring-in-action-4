@@ -2,7 +2,7 @@
 -----------
 
 # 1　Spring远程调用概览
-！！！
+<br/>![](img/remoteSvs.jpg)<br/>
 图15.1　第三方客户端能够远程调用Spittr的服务，从而实现与Spittr应用交互
 
 其他应用与Spittr之间的会话开始于客户端应用的一个远程过程调用（remote procedure call，RPC）。从表面上看，RPC类似于调用一个本地对象的一个方法。这两者都是同步操作，会阻塞调用代码的执行，直到被调用的过程执行完毕。
@@ -96,10 +96,10 @@ Burlap是一种基于XML的远程调用技术，这使得它可以自然而然�
 ## 3.1　使用Hessian和Burlap导出bean的功能
 **导出Hessian服务**
 HessianServiceExporter对Hessian服务所执行的功能与RmiServiceExporter对RMI服务所执行的功能是相同的：它把POJO的public方法发布成Hessian服务的方法。不过，正如图15.6所示，其实现过程与RmiServiceExporter将POJO发布为RMI服务是不同的。
-！！！
+<br/>![](img/hessianExport.jpg)<br/>
 图15.6　HessianServiceExporter是一个Spring MVC控制器，它可以接收Hessian请求，并把这些请求转换成对POJO的调用从而将POJO导出为一个Hessian服务
 HessianServiceExporter（稍后会有更详细的介绍）是一个Spring MVC控制器，它接收Hessian请求，并将这些请求转换成对被导出POJO的方法调用。在如下Spring的声明中，HessianServiceExporter会把spitterService bean导出为Hessian服务：
-！！！
+<br/>![](img/hessianExportBean.jpg)<br/>
 
 与RmiServiceExporter不同的是，我们不需要设置serviceName属性。在RMI中，serviceName属性用来在RMI注册表中注册一个服务。而Hessian没有注册表，因此也就没必要为Hessian服务进行命名。
 
@@ -115,14 +115,14 @@ RmiServiceExporter和HessianServiceExporter另外一个主要区别就是，由�
 如果为了可读性，或者不那么在乎宽带优势（二进制比XML的优势），我们还可以选择使用Burlap基于XML的协议。让我们看看如何把一个服务导出为Burlap服务。
 
 **导出Burlap服务**
-！！！
+<br/>![](img/burlapExportBean.jpg)<br/>
 
 ## 3.2　访问Hessian/Burlap服务
 在客户端代码中，基于RMI的服务与基于Hessian的服务之间唯一的差别在于要使用Spring的HessianProxyFactoryBean来代替RmiProxyFactoryBean。客户端调用基于Hessian的Spitter服务可以用如下的配置声明：
-！！！
+<br/>![](img/ClientAndRMIProxy.jpg)<br/>
 
 既然Hessian是基于HTTP的，当然我们在这里要设置一个HTTP URL（URL是由我们先前定义的URL映射所决定的）。图15.7展示了客户端以及由HessianProxyFactoryBean所生成的代理之间是如何交互的。
-！！！
+<br/>![](img/HessianClientAndProxyComm.jpg)<br/>
 图15.7　HessianProxyFactoryBean和BurlapProxyFactoryBean生成的代理对象负责通过HTTP（Hessian为二进制、Burlap为XML）与远程对象通信
 
 事实证明，把Burlap服务装配进客户端同样也没有太多新意。二者唯一的区别在于，我们要使用BurlapProxyFactoryBean来代替HessianProxyFactoryBean。
@@ -136,26 +136,26 @@ RmiServiceExporter和HessianServiceExporter另外一个主要区别就是，由�
 HTTP invoker是一个新的远程调用模型，作为Spring框架的一部分，能够执行基于HTTP的远程调用（让防火墙不为难），并使用Java的序列化机制（让开发者也乐观其变）。
 
 ## 4.1　将bean导出为HTTP服务
-为了把Spitter服务导出为一个基于HTTP invoker的服务，我们需要像下面的配置一样声明一个HttpInvokerServiceExporterbean：
-！！！
+为了把Spitter服务导出为一个基于HTTP invoker的服务，我们需要像下面的配置一样声明一个HttpInvokerServiceExporter bean：
+<br/>![](img/httpInvokerExporter.jpg)<br/>
 
-如图15.8所示，HttpInvokerServiceExporter的工作方式与HessianService-Exporter和BurlapServiceExporter很相似。HttpInvokerServiceExporter也是一个Spring的MVC控制器，它通过DispatcherServlet接收来自于客户端的请求，并将这些请求转换成对实现服务的POJO的方法调用。
+如图15.8所示，HttpInvokerServiceExporter的工作方式与HessianServiceExporter和BurlapServiceExporter很相似。HttpInvokerServiceExporter也是一个Spring的MVC控制器，它通过DispatcherServlet接收来自于客户端的请求，并将这些请求转换成对实现服务的POJO的方法调用。
 
-！！！
+<br/>![](img/HttpInvokerProcess.jpg)<br/>
 图15.8　HttpInvokerServiceExporter工作方式与Hessian和Burlap很相似，通过Spring MVC的DispatcherServlet接收请求，并将这些请求转换成对Spring bean的方法调用
 
 因为HttpInvokerServiceExporter是一个Spring MVC控制器，我们需要建立一个URL处理器，映射HTTP URL到对应的服务上，就像Hessian和Burlap导出器所做的一样：
-！！！
+<br/>![](img/HttpInvokerMapping.jpg)<br/>
 
 同样，像之前一样，我们需要确保匹配了DispatcherServlet，这样才能处理对“*.service”扩展的请求。
 
 ## 4.2　通过HTTP访问服务
 
-！！！
+<br/>![](img/HttpInvokerCallProcess.jpg)<br/>
 图15.9　HttpInvokerProxyFactoryBean是一个代理工厂bean，用于生成一个代理，该代理使用Spring特有的基于HTTP协议进行远程通信
 
 为了把基于HTTP invoker的远程服务装配进我们的客户端Spring应用上下文中，我们必须将 HttpInvokerProxyFactoryBean 配置为一个bean来代理它，如下所示：
-！！！
+<br/>![](img/HttpInvokerProxyFactory.jpg)<br/>
 
 **优缺点与Web服务**
 要记住HTTP invoker有一个重大的限制：它只是一个Spring框架所提供的远程调用解决方案。这意味着客户端和服务端必须都是Spring应用。并且，至少目前而言，也隐含表明客户端和服务端必须是基于Java的。另外，因为使用了Java的序列化机制，客户端和服务端必须使用相同版本的类（与RMI类似）。
@@ -174,11 +174,11 @@ JAX-WS编程模型使用注解将类和类的方法声明为Web服务的操作�
 装配JAX-WS端点的秘密在于继承SpringBeanAutowiringSupport。通过继承SpringBeanAutowiringSupport，我们可以使用@Autowired注解标注端点的属性，依赖就会自动注入了。SpitterServiceEndpoint展示了它是如何工作的。
 
 程序清单15.2　JAX-WS端点中的SpitterBeanAutowiringSupport
-！！！
+<br/>![](img/WSServiceEndpoint.jpg)<br/>
 
 我们在SpitterService属性上使用@Autowired注解来表明它应该自动注入一个从Spring应用上下文中所获取的bean。在这里，端点委托注入的SpitterService来完成实际的工作。
 
-**导出独立的JAX-WS端点**
+**导出独立的JAX-WS端点（JDK1.6）**
 正如我所说的，当对象的生命周期不是由Spring管理的，而对象的属性又需要注入Spring所管理的bean时，SpringBeanAutowiringSupport很有用。在合适场景下，还是可以把Spring管理的bean导出为JAX-WS端点的。
 
 SpringSimpleJaxWsServiceExporter的工作方式很类似于本章前边所介绍的其他服务导出器。它把Spring管理的bean发布为JAX-WS运行时中的服务端点。与其他服务导出器不同，SimpleJaxWsServiceExporter不需要为它指定一个被导出bean的引用，它会将使用JAX-WS注解所标注的所有bean发布为JAX-WS服务。
@@ -204,4 +204,22 @@ SpringSimpleJaxWsServiceExporter的工作方式很类似于本章前边所介绍
     exporter.setBaseAddress("http://localhost:8888/services/")
   }
 ```
+**【注意】版本支持**
+SimpleJaxWsServiceEndpoint就像看起来那么简单，但是我们应该注意它只能用在支持将端点发布到指定地址的JAX-WS运行时中。这包含了Sun 1.6 JDK自带的JAX-WS运行时。其他的JAX-WS运行时，例如JAX-WS 2.1的参考实现，不支持这种类型的端点发布，因此也就不能使用SimpleJaxWsServiceEndpoint。
 
+## 5.2　在客户端代理JAX-WS服务
+使用JaxWsProxyFactoryBean，我们可以在Spring中装配Spitter Web服务，与任意一个其他的bean一样.
+<br/>![](img/JaxWs15-10.jpg)<br/>
+图15.10　JaxWsPortProxyFactoryBean生成可以与远程Web服务交互的代理。这些代理可以被装配到其他bean中，就像它们是本地POJO一样
+
+我们可以像下面这样配置JaxWsPortProxyFactoryBean来引用Spitter服务：
+<br/>![](img/jaxWsBean.jpg)<br/>
+
+剩下的三个属性的值通常可以通过查看服务的WSDL来确定。为了演示，我们假设为Spitter服务的WSDL如下所示：
+<br/>![](img/wsdl.jpg)<br/>
+虽然不太可能这么做，但是在服务的WSDL中定义多个服务和端口是允许的。鉴于此，JaxWsPortProxyFactoryBean需要我们使用portName和serviceName属性指定端口和服务名称。WSDL中`<wsdl:port>`和`<wsdl:service>`元素的name属性可以帮助我们识别出这些属性该设置成什么。
+
+最后，namespaceUri属性指定了服务的命名空间。命名空间将有助于JaxWsPortProxyFactoryBean去定位WSDL中的服务定义。正如端口和服务名一样，我们可以在WSDL中找到该属性的正确值。它通常会在`<wsdl:definitions>`的targetNamespace属性中。
+
+# 6　小结
+尽管这是开发Web服务的一种简单方式，但从架构角度来看，它可能不是最佳的选择。在下一章，我们将学习构建分布式应用的另一种选择，把应用暴露为RESTful资源。
