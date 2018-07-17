@@ -218,6 +218,32 @@ public class Shout {
 因为我们现在处理的不是HTTP，所以无法使用Spring的HttpMessageConverter实现将负载转换为Shout对象。Spring 4.0提供了几个消息转换器，作为其消息API的一部分。表18.1描述了这些消息转换器，在处理STOMP消息的时候可能会用到它们。
 
 表18.1　Spring能够使用某一个消息转换器将消息负载转换为Java类型
+！！！
+
+**处理订阅**
+@SubscribeMapping的主要应用场景是实现请求-回应模式。在请求-回应模式中，客户端订阅某一个目的地，然后预期在这个目的地上获得一个一次性的响应。
+例如，考虑如下@SubscribeMapping注解标注的方法：
+```java
+  @SubscribeMapping({"/marco"})
+  public Shout handleSubscription(){
+    Shout outgoing = new Shout();
+    outgoing.setMessage("Polo!");
+    return outgoing;
+  }
+```
+
+可以看到，handleSubscription()方法使用了@SubscribeMapping注解，用这个方法来处理对“/app/marco”目的地的订阅（与@MessageMapping类似，“/app”是隐含的）。当处理这个订阅时，handleSubscription()方法会产生一个输出的Shout对象并将其返回。然后，Shout对象会转换成一条消息，并且会按照客户端订阅时相同的目的地发送回客户端。
+
+如果你觉得这种请求-回应模式与HTTP GET的请求-响应模式并没有太大差别的话，那么你基本上是正确的。但是，这里的关键区别在于HTTPGET请求是同步的，而订阅的请求-回应模式则是异步的，这样客户端能够在回应可用时再去处理，而不必等待。
+
+**编写JavaScript客户端**
+程序清单18.7　借助STOMP库，通过JavaScript发送消息
+!!!
+在本例中，URL引用的是程序清单18.5中所配置的STOMP端点（不包括应用的上下文路径“/stomp”）。
+
+但是，这里的区别在于，我们不再直接使用SockJS，而是通过调用Stomp.over(sock)创建了一个STOMP客户端实例。这实际上封装了SockJS，这样就能在WebSocket连接上发送STOMP消息。
+
+## 3.3　发送消息到客户端
 
 
 # 4　为目标用户发送消息

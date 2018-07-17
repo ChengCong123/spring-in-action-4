@@ -16,11 +16,18 @@ public class MarcoController {
     logger.info("Received message: " + incoming.getMessage());
 
     try { Thread.sleep(2000); } catch (InterruptedException e) {}
-    
+
     Shout outgoing = new Shout();
     outgoing.setMessage("Polo!");
-    
+
     return outgoing;
   }
+
+/*  @SubscribeMapping({"/marco"})
+  public Shout handleSubscription(){
+    Shout outgoing = new Shout();
+    outgoing.setMessage("Polo!");
+    return outgoing;
+  }*/
 
 }
