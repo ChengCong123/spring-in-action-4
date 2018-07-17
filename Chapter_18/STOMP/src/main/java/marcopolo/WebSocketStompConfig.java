@@ -21,5 +21,5 @@ public class WebSocketStompConfig extends AbstractWebSocketMessageBrokerConfigur
     registry.enableSimpleBroker("/queue", "/topic");
     registry.setApplicationDestinationPrefixes("/app");
   }
-  
+
 }

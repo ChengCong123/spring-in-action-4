@@ -108,6 +108,118 @@ var sock = new SocktJS(url);
 所做的第一个修改就是URL。SockJS所处理的URL是“http://”或“https://”模式，而不是“ws://”和“wss://”。即便如此，我们还是可以使用相对URL，避免书写完整的全限定URL。在本例中，如果包含JavaScript的页面位于“http://localhost:8080/websocket”路径下，那么给定的“marco”路径将会形成到“http://localhost:8080/websocket/marco”的连接。
 
 # 3　使用STOMP消息
+直接使用WebSocket（或SockJS）就很类似于使用TCP套接字来编写Web应用。因为没有高层级的线路协议（wire protocol），因此就需要我们定义应用之间所发送消息的语义，还需要确保连接的两端都能遵循这些语义。
+不过，好消息是我们并非必须要使用原生的WebSocket连接。就像HTTP在TCP套接字之上添加了请求-响应模型层一样，STOMP在WebSocket之上提供了一个基于帧的线路格式（frame-based wire format）层，用来定义消息的语义。
+
+乍看上去，STOMP的消息格式非常类似于HTTP请求的结构。与HTTP请求和响应类似，STOMP帧由命令、一个或多个头信息以及负载所组成。例如，如下就是发送数据的一个STOMP帧：
+```
+SEND
+destination:/app/marco
+content-length:20
+
+{\"message\":\"Marco!\"}
+```
+
+## 　3.1 启用STOMP消息功能
+在Spring MVC中为控制器方法添加@MessageMapping注解，使其处理STOMP消息，它与带有@RequestMapping注解的方法处理HTTP请求的方式非常类似。但是与@RequestMapping不同的是
+- @MessageMapping的功能无法通过@EnableWebMvc启用，而是@EnableWebSocketMessageBroker。
+- Spring的Web消息功能基于消息代理（message broker）构建，因此除了告诉Spring我们想要处理消息以外，还有其他的内容需要配置。
+
+```java
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketStompConfig extends AbstractWebSocketMessageBrokerConfigurer {
+
+  @Override
+  public void registerStompEndpoints(StompEndpointRegistry registry) {
+    registry.addEndpoint("/marcopolo").withSockJS();
+  }
+
+  @Override
+  public void configureMessageBroker(MessageBrokerRegistry registry) {
+//    registry.enableStompBrokerRelay("/queue", "/topic");
+    registry.enableSimpleBroker("/queue", "/topic");
+    registry.setApplicationDestinationPrefixes("/app");
+  }
+  
+}
+```
+上述配置，它重载了registerStompEndpoints()方法，将“/marcopolo”注册为STOMP端点。这个路径与之前发送和接收消息的目的地路径有所不同。这是一个端点，客户端在订阅或发布消息到目的地路径前，要连接该端点。
+
+WebSocketStompConfig还通过重载configureMessageBroker()方法配置了一个简单的消息代理。消息代理将会处理前缀为“/topic”和“/queue”的消息。除此之外，发往应用程序的消息将会带有“/app”前缀。图18.2展现了这个配置中的消息流。
+！！！
+
+**启用STOMP代理中继**
+对于生产环境下的应用来说，你可能会希望使用真正支持STOMP的代理来支撑WebSocket消息，如RabbitMQ或ActiveMQ。这样的代理提供了可扩展性和健壮性更好的消息功能，当然它们也会完整支持STOMP命令。我们需要根据相关的文档来为STOMP搭建代理。搭建就绪之后，就可以使用STOMP代理来替换内存代理了，只需按照如下方式重载configureMessageBroker()方法即可：
+```java
+  @Override
+  public void configureMessageBroker(MessageBrokerRegistry registry) {
+    registry.enableStompBrokerRelay("/queue", "/topic");
+    registry.setApplicationDestinationPrefixes("/app");
+  }
+```
+- 上述configureMessageBroker()方法的第一行代码启用了STOMP代理中继（broker relay）功能，并将其目的地前缀设置为“/topic”和“/queue”。这样的话，Spring就能知道所有目的地前缀为“/topic”或“/queue”的消息都会发送到STOMP代理中。
+
+- 在第二行的configureMessageBroker()方法中将应用的前缀设置为“/app”。所有目的地以“/app”打头的消息都将会路由到带有@MessageMapping注解的方法中，而不会发布到代理队列或主题中。
+
+默认情况下，STOMP代理中继会假设代理监听localhost的61613端口，并且客户端的username和password均为“guest”。如果你的STOMP代理位于其他的服务器上，或者配置成了不同的客户端凭证，那么我们可以在启用STOMP代理中继的时候，需要配置这些细节信息：
+```java
+  @Override
+  public void configureMessageBroker(MessageBrokerRegistry registry) {
+    registry.enableStompBrokerRelay("/queue", "/topic")
+            .setRelayHost("rabbit.someotherserver")
+            .setRelayPort(62623)
+            .setClientLogin("marcopolo")
+            .setClientPasscode("letmein01")
+    registry.setApplicationDestinationPrefixes("/app");
+  }
+```
+## 3.2　处理来自客户端的STOMP消息
+Spring 4.0引入了@MessageMapping注解，它用于STOMP消息的处理，类似于Spring MVC的@RequestMapping注解。当消息抵达某个特定的目的地时，带有@MessageMapping注解的方法能够处理这些消息。
+```java
+@Controller
+public class MarcoController {
+
+  private static final Logger logger = LoggerFactory
+      .getLogger(MarcoController.class);
+
+  @MessageMapping("/marco")
+  public Shout handleShout(Shout incoming) {
+    logger.info("Received message: " + incoming.getMessage());
+
+    try { Thread.sleep(2000); } catch (InterruptedException e) {}
+    
+    Shout outgoing = new Shout();
+    outgoing.setMessage("Polo!");
+    
+    return outgoing;
+  }
+
+}
+```
+示handleShout()方法能够处理指定目的地上到达的消息。在本例中，这个目的地也就是“/app/marco”（“/app”前缀是隐含的，因为我们将其配置为应用的目的地前缀）。
+- Shout类是个简单的JavaBean
+```java
+public class Shout {
+
+  private String message;
+
+  public String getMessage() {
+    return message;
+  }
+
+  public void setMessage(String message) {
+    this.message = message;
+  }
+  
+}
+```
+
+因为我们现在处理的不是HTTP，所以无法使用Spring的HttpMessageConverter实现将负载转换为Shout对象。Spring 4.0提供了几个消息转换器，作为其消息API的一部分。表18.1描述了这些消息转换器，在处理STOMP消息的时候可能会用到它们。
+
+表18.1　Spring能够使用某一个消息转换器将消息负载转换为Java类型
+
+
 # 4　为目标用户发送消息
 # 5　处理消息异常
 
