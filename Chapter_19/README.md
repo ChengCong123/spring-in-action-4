@@ -84,7 +84,53 @@ helper.addInline("spitterLogo", couponImage);
 创建Email体时，使用字符串拼接的办法来构建HTML消息依旧让我觉得美中不足。在结束Email话题之前，让我们看看如何用模板来代替字符串拼接消息。
 
 # 3　使用模板生成Email
+我们需要与最终HTML接近的方式来表达Email布局，然后将模板转换成String并传递给helper的setText()方法。在将模板转换为String时，我们有多种模板方案可供选择，包括Apache Velocity和Thymeleaf。让我们看一下如何使用这两种方案创建富文本的Email消息，先从Velocity开始吧。
+## 3.1　使用Velocity构建Email消息
+为了使用Velocity对Email进行布局，我们需要将VelocityEngine装配到SpitterEmailServiceImpl中。Spring提供了一个名为VelocityEngineFactoryBean的工厂bean，它能够在Spring应用上下文中很便利地生成VelocityEngine。VelocityEngineFactoryBean的声明如下：
+<br/>![](img/VelocityEFB.jpg)<br/>
 
+VelocityEngineFactoryBean唯一要设置的属性是velocityProperties。在本例中，我们将其配置为从类路径下加载Velocity模板（关于配置Velocity的更多细节，请查阅Velocity文档）。
+
+现在，我们可以将Velocity引擎装配到SpitterEmailServiceImpl中。因为SpitterEmailServiceImpl是使用组件扫描实现自动注册的，我们可以使用@Autowired来自动装配velocityEngine属性：
+```java
+@Autowired
+VelocityEngine velocityEngine;
+```
+现在，velocityEngine属性可用了，我们可以使用它将Velocity模板转换为String，并作为Email文本进行发送。为了帮助我们完成这一点，Spring自带了VelocityEngineUtils来简化将Velocity模板与模型数据合并成String的工作。以下是我们可能的使用方式：
+<br/>![](img/VelocityToStr.jpg)<br/>
+
+在Java代码中剩下的事情就是得到合并后的Email文本，并将其传递给helper的setText()方法：
+```
+    helper.setText(emailText, true);
+```
+
+模板位于类路径的根目录下，是一个名为emailTemplate.vm的文件，它看起来可能是这样的：
+<br/>![](img/emailTemplate.jpg)<br/>
+
+## 3.2　使用Thymeleaf构建Email消息
+当我们将Email模板转换为Thymeleaf模板时，Thymeleaf的WYSIWYG特性体现得非常明显：
+<br/>![](img/ThymeleafTemplate.jpg)<br/>
+
+注意，这里没有任何自定义的标签（在JSP中可能会见到这种情况）。尽管模型属性是通过“${}”标记的，但是它们仅用于属性的值中，不会像Velocity那样用在外边。这种模板可以很容易地在Web浏览器中打开，并且以完整的形式进行展现，不必依赖于Thymeleaf引擎的处理。
+
+使用Thymeleaf来生成和发送Email消息的做法非常类似于Velocity：
+<br/>![](img/ThymeleafSendEmail.jpg)<br/>
+
+这里的Thymeleaf引擎与我们在第6章构建Web视图时所使用的SpringTemplateEnginebean是相同的。在这里，我们使用构造器注入的方式将其注入到SpitterEmailServiceImpl中：
+<br/>![](img/ThymeleafEngine.jpg)<br/>
+
+不过，我们必要要对SpringTemplateEnginebean做一点小修改。在第6章中，它配置为从Servlet上下文中解析模板，而我们的Email模板需要从类路径中解析。所以，除了ServletContextTemplateResolver，还需要一个ClassLoaderTemplateResolver：
+<br/>![](img/ClassLoaderTR.jpg)<br/>
+
+需要注意，我们将prefix属性设置为“mail/”，这表明它会在类路径根的“mail”目录下开始查找Thymeleaf模板。因此，Email模板文件的名字必须是emailTemplate.html，并且位于类路径根的“mail”目录下。
+
+因为我们现在有两个模板解析器，所以需要使用order属性表明优先使用哪一个。ClassLoaderTemplateResolver的order属性为1，因此我们修改一下ServletContextTemplateResolver，将其order属性设置为2：
+<br/>![](img/TemplateRO.jpg)<br/>
+
+现在，剩下的任务就是修改SpringTemplateEnginebean的配置，让它使用这两个模板解析器：
+<br/>![](img/TemplateEB.jpg)<br/>
+
+在此之前，我们只有一个模板解析器，所以可以将其注入到SpringTemplateEngine的templateResolver属性中。但现在我们有了两个模板解析器，所以必须将它们作为Set的成员，然后将这个Set注入到templateResolvers（复数）属性中。
 
 
 # 源码
