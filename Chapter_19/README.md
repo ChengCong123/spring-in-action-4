@@ -70,7 +70,7 @@ javax.mail.internet.MimeMessage本身的API有些笨重。好消息是，Spring�
 <br/>![](img/richText.jpg)<br/>
 
 第二个参数表明传递进来的第一个参数是HTML，所以需要对消息的内容类型进行相应的设置。
-要注意的是，传递进来的HTML包含了一个<img>标签，用来在Email中展现Spittr应用程序的logo。src属性可以设置为标准的“http:”URL，以便于从Web中获取Spittr的logo。但在这里，我们将logo图片嵌入在了Email之中。值“cid:spitterLogo”表明在消息中会有一部分是图片并以spitterLogo来进行标识。
+要注意的是，传递进来的HTML包含了一个`<img>`标签，用来在Email中展现Spittr应用程序的logo。src属性可以设置为标准的“http:”URL，以便于从Web中获取Spittr的logo。但在这里，我们将logo图片嵌入在了Email之中。值“cid:spitterLogo”表明在消息中会有一部分是图片并以spitterLogo来进行标识。
 
 为消息添加嵌入式的图片与添加附件很类似。不过这次不再使用helper的addAttachment()方法，而是要调用addInline()方法：
 ```java
